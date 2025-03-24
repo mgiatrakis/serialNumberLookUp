@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serial Number Lookup</title>
+    <style>
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 1200px;
+            border-radius: 8px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 600px;
+        }
+        h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        textarea {
+            width: 96%;
+            height: 120px; /* Adjusted height for better appearance */
+            margin-bottom: 20px; /* Increased margin for spacing */
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-size: 16px;
+            resize: vertical; /* Allow vertical resizing */
+        }
+        button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+            .asc::after {
+                content: " ↑";
+            }
+            .desc::after {
+                content: " ↓";
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Serial Number Lookup</h2>
+        <div id="entryCount" style="margin-bottom: 15px; color: #666;">Loading available entries...</div>
+        <textarea id="serialInput" placeholder="Enter serial numbers, one per line..."></textarea>
+        <button onclick="processSerialNumbers()">Lookup</button>
+        <button onclick="exportToCSV()">Export CSV</button>
+        <button onclick="openDatabaseModal()">Look into Database</button>
+        <table id="resultTable">
+            <thead>
+                <tr>
+                    <th>Serial Number</th>
+                    <th>Product Number</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- Modal -->
+    <div id="databaseModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Database Content</h2>
+            <table id="databaseTable">
+                <thead>
+                    <tr>
+                        <th>Serial Number Range</th>
+                        <th>Product Number</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        let serialMapping = {};
+        
+        // Fetch JSON Data from Server
+        async function fetchSerialData() {
+            try {
+                const response = await fetch('https://raw.githubusercontent.com/77manos7/jsonlibraryfiles/refs/heads/main/product_numbers.json');
+                serialMapping = await response.json();
+                
+                // Calculate total entries
+                let totalEntries = 0;
+                for (const key in serialMapping) {
+                    if (key.includes('-')) {
+                        const [start, end] = key.split('-').map(Number);
+                        totalEntries += end - start + 1;
+                    } else {
+                        totalEntries += 1;
+                    }
+                }
+                
+                document.getElementById('entryCount').textContent = `Total serials loaded: ${totalEntries.toLocaleString()}`;
+            } catch (error) {
+                console.error("Error fetching JSON:", error);
+                document.getElementById('entryCount').textContent = 'Error loading entries';
+            }
+        }
+
+        // Function to compare alphanumeric serial numbers
+        function compareSerials(a, b) {
+            const regExp = /([A-Za-z]+)(\d+)/;
+            const matchA = a.match(regExp);
+            const matchB = b.match(regExp);
+
+            if (!matchA || !matchB) {
+                return 0; // If the serial numbers don't match the pattern, consider them equal
+            }
+
+            const [_, prefixA, numA] = matchA;
+            const [__, prefixB, numB] = matchB;
+
+            // Compare alphabetic part first
+            if (prefixA < prefixB) return -1;
+            if (prefixA > prefixB) return 1;
+
+            // If alphabetic part is the same, compare the numeric part
+            return parseInt(numA) - parseInt(numB);
+        }
+
+        // Function to find the product based on the serial number
+        function findProduct(serialNumber) {
+            const numericSerial = parseInt(serialNumber);
+            if (isNaN(numericSerial)) return "Not Found";
+            
+            for (const key in serialMapping) {
+                if (key.includes('-')) {
+                    // Handle range entry
+                    const [start, end] = key.split('-').map(Number);
+                    if (numericSerial >= start && numericSerial <= end) {
+                        return serialMapping[key];
+                    }
+                } else {
+                    // Handle single value entry
+                    if (numericSerial === parseInt(key)) {
+                        return serialMapping[key];
+                    }
+                }
+            }
+            return "Not Found";
+        }
+
+        // Function to process the serial numbers entered by the user
+        function processSerialNumbers() {
+            const input = document.getElementById('serialInput').value;
+            const serialNumbers = input.split('\n').map(s => s.trim()).filter(s => s);
+            const tableBody = document.getElementById('resultTable').querySelector('tbody');
+            tableBody.innerHTML = "";
+
+            serialNumbers.forEach(serial => {
+                const product = findProduct(serial);
+                const row = `<tr><td>${serial}</td><td>${product}</td></tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        // Function to export the result table to CSV
+        function exportToCSV() {
+            let csvContent = "Serial Number,Product Number\n";
+            document.querySelectorAll('#resultTable tbody tr').forEach(row => {
+                const cols = row.querySelectorAll('td');
+                csvContent += `${cols[0].innerText},${cols[1].innerText}\n`;
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "serial_numbers.csv";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // Modal functionality
+        const modal = document.getElementById("databaseModal");
+        const closeBtn = document.getElementsByClassName("close")[0];
+
+        function openDatabaseModal() {
+            modal.style.display = "block";
+            populateDatabaseTable();
+        }
+
+        closeBtn.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        function populateDatabaseTable() {
+            const tableBody = document.getElementById('databaseTable').querySelector('tbody');
+            const tableHead = document.getElementById('databaseTable').querySelector('thead');
+            tableBody.innerHTML = "";
+            
+            // Add click handlers to table headers
+            tableHead.querySelectorAll('th').forEach(th => {
+                th.style.cursor = 'pointer';
+                th.addEventListener('click', () => sortTable(th));
+            });
+            
+            // Convert object to array for sorting
+            const entries = Object.entries(serialMapping).map(([range, product]) => ({ range, product }));
+            
+            // Initial sort by range
+            entries.sort((a, b) => {
+                const [startA] = a.range.split('-').map(Number);
+                const [startB] = b.range.split('-').map(Number);
+                return startA - startB;
+            });
+            
+            entries.forEach(entry => {
+                const row = document.createElement('tr');
+                const rangeCell = document.createElement('td');
+                const productCell = document.createElement('td');
+                
+                rangeCell.textContent = entry.range;
+                productCell.textContent = entry.product;
+                
+                row.appendChild(rangeCell);
+                row.appendChild(productCell);
+                tableBody.appendChild(row);
+            });
+        }
+
+        function sortTable(th) {
+            const table = document.getElementById('databaseTable');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const index = Array.from(th.parentElement.children).indexOf(th);
+            const isAsc = th.classList.contains('asc');
+            
+            // Remove sort classes from all headers
+            table.querySelectorAll('th').forEach(header => {
+                header.classList.remove('asc', 'desc');
+            });
+            
+            // Add sort class to clicked header
+            th.classList.add(isAsc ? 'desc' : 'asc');
+            
+            // Sort rows
+            rows.sort((a, b) => {
+                const cellA = a.cells[index].textContent;
+                const cellB = b.cells[index].textContent;
+                
+                if (index === 0) { // Serial Number Range
+                    const [startA] = cellA.split('-').map(Number);
+                    const [startB] = cellB.split('-').map(Number);
+                    return isAsc ? startB - startA : startA - startB;
+                } else { // Product
+                    return isAsc 
+                        ? cellB.localeCompare(cellA) 
+                        : cellA.localeCompare(cellB);
+                }
+            });
+            
+            // Reorder rows
+            rows.forEach(row => tbody.appendChild(row));
+        }
+        window.onload = fetchSerialData;
+    </script>
+</body>
+</html>
