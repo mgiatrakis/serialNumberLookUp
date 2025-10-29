@@ -499,7 +499,7 @@
         async function fetchSerialData() {
             showLoading('Loading serial database...');
             try {
-                const response = await fetch('https://raw.githubusercontent.com/77manos7/serialNumberLookUp/refs/heads/main/product_numbers.json');
+                const response = await fetch('https://raw.githubusercontent.com/mgiatrakis/serialNumberLookUp/refs/heads/main/product_numbers.json');
                 serialMapping = await response.json();
                 
                 // Calculate total entries with better error handling
@@ -795,3 +795,4 @@
     </script>
 </body>
 </html>
+
