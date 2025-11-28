@@ -116,6 +116,10 @@
             margin-bottom: 32px;
         }
 
+        button {
+            cursor: pointer;
+        }
+
         .btn {
             padding: 14px 24px;
             border: none;
@@ -563,18 +567,70 @@
 
         // Function to find the product based on the serial number
         function findProduct(serialNumber) {
-            const numericSerial = parseInt(serialNumber);
-            if (isNaN(numericSerial)) return "Not Found";
+            const trimmedSerial = serialNumber.trim();
             
+            // First, check for exact string match (handles alphanumeric and special cases)
+            if (serialMapping.hasOwnProperty(trimmedSerial)) {
+                return serialMapping[trimmedSerial];
+            }
+            
+            // Check if it's a pure numeric serial
+            const numericSerial = parseInt(trimmedSerial);
+            const isNumeric = !isNaN(numericSerial) && trimmedSerial === numericSerial.toString();
+            
+            // Iterate through all mappings
             for (const key in serialMapping) {
                 if (key.includes('-')) {
-                    const [start, end] = key.split('-').map(Number);
-                    if (numericSerial >= start && numericSerial <= end) {
-                        return serialMapping[key];
+                    // Handle range matching
+                    const [startStr, endStr] = key.split('-');
+                    
+                    // Check if range is numeric
+                    const startNum = parseInt(startStr);
+                    const endNum = parseInt(endStr);
+                    const isNumericRange = !isNaN(startNum) && !isNaN(endNum) && 
+                                          startStr === startNum.toString() && 
+                                          endStr === endNum.toString();
+                    
+                    if (isNumericRange && isNumeric) {
+                        // Numeric range with numeric serial
+                        if (numericSerial >= startNum && numericSerial <= endNum) {
+                            return serialMapping[key];
+                        }
+                    } else {
+                        // Alphanumeric range - check if serial matches the pattern
+                        // Pattern: digits + letters + digits (e.g., "6C798390")
+                        const serialMatch = trimmedSerial.match(/^(\d+)([A-Za-z]+)(\d+)$/);
+                        const startMatch = startStr.match(/^(\d+)([A-Za-z]+)(\d+)$/);
+                        const endMatch = endStr.match(/^(\d+)([A-Za-z]+)(\d+)$/);
+                        
+                        if (serialMatch && startMatch && endMatch) {
+                            // Check if prefix (digits + letters) and letter part match
+                            if (serialMatch[1] === startMatch[1] && 
+                                serialMatch[2] === startMatch[2] && 
+                                serialMatch[2] === endMatch[2]) {
+                                const serialSuffix = parseInt(serialMatch[3]);
+                                const startSuffix = parseInt(startMatch[3]);
+                                const endSuffix = parseInt(endMatch[3]);
+                                
+                                if (!isNaN(serialSuffix) && !isNaN(startSuffix) && !isNaN(endSuffix) &&
+                                    serialSuffix >= startSuffix && serialSuffix <= endSuffix) {
+                                    return serialMapping[key];
+                                }
+                            }
+                        } else {
+                            // Fallback: lexicographic string comparison for other alphanumeric patterns
+                            if (trimmedSerial >= startStr && trimmedSerial <= endStr) {
+                                return serialMapping[key];
+                            }
+                        }
                     }
                 } else {
-                    if (numericSerial === parseInt(key)) {
-                        return serialMapping[key];
+                    // Single value match
+                    if (isNumeric) {
+                        const keyNum = parseInt(key);
+                        if (!isNaN(keyNum) && key === keyNum.toString() && numericSerial === keyNum) {
+                            return serialMapping[key];
+                        }
                     }
                 }
             }
