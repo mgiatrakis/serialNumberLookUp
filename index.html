@@ -1096,11 +1096,16 @@
             }
 
             const conflicts = findExistingSerialConflicts(serialEntries);
+            const conflictInputs = new Set(conflicts.map(conflict => conflict.input));
+            const usableEntries = serialEntries.filter(entry => !conflictInputs.has(entry));
 
             if (conflicts.length > 0) {
                 showGeneratorConflicts(conflicts);
+            }
+
+            if (usableEntries.length === 0) {
                 showGeneratorMessage(
-                    `${conflicts.length.toLocaleString()} serial entr${conflicts.length === 1 ? 'y' : 'ies'} already exist in the database. Generation blocked.`,
+                    `All ${conflicts.length.toLocaleString()} serial entr${conflicts.length === 1 ? 'y' : 'ies'} already exist in the database. Nothing left to generate.`,
                     'error'
                 );
                 output.value = '';
@@ -1109,7 +1114,7 @@
 
             const jsonObject = {};
 
-            for (const serialEntry of serialEntries) {
+            for (const serialEntry of usableEntries) {
                 jsonObject[serialEntry] = resolvedProductNumber;
             }
 
@@ -1118,7 +1123,11 @@
             const duplicateCount =
                 countRawSerialEntries(rawSerialData) - serialEntries.length;
 
-            let message = `Generated ${serialEntries.length.toLocaleString()} JSON entries.`;
+            let message = `Generated ${usableEntries.length.toLocaleString()} JSON entries.`;
+
+            if (conflicts.length > 0) {
+                message += ` Removed ${conflicts.length.toLocaleString()} entr${conflicts.length === 1 ? 'y' : 'ies'} that already exist in the database.`;
+            }
 
             if (duplicateCount > 0) {
                 message += ` Removed ${duplicateCount.toLocaleString()} duplicate entries.`;
