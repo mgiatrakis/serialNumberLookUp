@@ -374,6 +374,30 @@
             border-color: #fff;
         }
 
+        .modal-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-link {
+            display: inline-flex;
+            align-items: center;
+            padding: 7px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            color: #fff;
+            text-decoration: none;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+
+        .modal-link:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #fff;
+        }
+
         .modal-body {
             padding: 20px;
             overflow-y: auto;
@@ -586,7 +610,16 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">Database</h2>
-                <button class="modal-close" type="button" onclick="closeDatabaseModal()" aria-label="Close">×</button>
+                <div class="modal-header-actions">
+                    <a
+                        id="databaseJsonLink"
+                        class="modal-link"
+                        href="https://raw.githubusercontent.com/mgiatrakis/serialNumberLookUp/refs/heads/main/product_numbers.json"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >Open JSON</a>
+                    <button class="modal-close" type="button" onclick="closeDatabaseModal()" aria-label="Close">×</button>
+                </div>
             </div>
             <div class="modal-body">
                 <div class="results">
@@ -683,6 +716,9 @@
     </div>
 
     <script>
+        const SERIAL_DATA_URL = 'https://raw.githubusercontent.com/mgiatrakis/serialNumberLookUp/refs/heads/main/product_numbers.json';
+        document.getElementById('databaseJsonLink').href = SERIAL_DATA_URL;
+
         let serialMapping = {};
         let currentResultSort = { column: -1, ascending: true };
         let currentDatabaseSort = { column: 0, ascending: true };
@@ -699,7 +735,7 @@
         async function fetchSerialData() {
             showLoading('Loading serial database...');
             try {
-                const response = await fetch('https://raw.githubusercontent.com/mgiatrakis/serialNumberLookUp/refs/heads/main/product_numbers.json');
+                const response = await fetch(SERIAL_DATA_URL);
                 serialMapping = await response.json();
 
                 let totalEntries = 0;
