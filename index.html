@@ -1154,7 +1154,7 @@
                 jsonObject[serialEntry] = resolvedProductNumber;
             }
 
-            output.value = JSON.stringify(jsonObject, null, 2);
+            output.value = formatJsonEntries(jsonObject);
 
             const duplicateCount =
                 countRawSerialEntries(rawSerialData) - serialEntries.length;
@@ -1170,6 +1170,12 @@
             }
 
             showGeneratorMessage(message, 'success');
+        }
+
+        function formatJsonEntries(jsonObject) {
+            return Object.entries(jsonObject)
+                .map(([key, value]) => `${JSON.stringify(key)}: ${JSON.stringify(value)},`)
+                .join('\n');
         }
 
         function toComparableSerial(value) {
@@ -1372,8 +1378,6 @@
             }
 
             try {
-                JSON.parse(json);
-
                 const productNumber =
                     document.getElementById('generatorProductNumber').value.trim();
 
@@ -1396,10 +1400,10 @@
                     'success'
                 );
             } catch (error) {
-                console.error('Invalid generated JSON:', error);
+                console.error('Download error:', error);
 
                 showGeneratorMessage(
-                    'The generated output is not valid JSON.',
+                    'Download failed.',
                     'error'
                 );
             }
