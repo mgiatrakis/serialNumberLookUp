@@ -12,6 +12,81 @@
             box-sizing: border-box;
         }
 
+        .generator-section {
+    margin-bottom: 32px;
+    padding: 24px;
+    background: linear-gradient(135deg, #f8fafc, #eef2ff);
+    border: 1px solid #dbeafe;
+    border-radius: 16px;
+}
+
+.generator-title {
+    color: #1e293b;
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+}
+
+.generator-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+.generator-input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    font-size: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.generator-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.generator-output {
+    min-height: 180px;
+    background: #111827;
+    color: #d1fae5;
+    border-color: #1f2937;
+}
+
+.generator-output:focus {
+    background: #111827;
+}
+
+.generator-message {
+    min-height: 22px;
+    margin-top: 12px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.generator-message.success {
+    color: #059669;
+}
+
+.generator-message.error {
+    color: #dc2626;
+}
+
+.btn-purple {
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+    color: white;
+    box-shadow: 0 4px 15px rgba(109, 40, 217, 0.3);
+}
+
+.btn-purple:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(109, 40, 217, 0.4);
+}
+        
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -427,7 +502,96 @@
                 <span>🗄️</span> View Database
             </button>
         </div>
+<div class="generator-section">
+    <h2 class="generator-title">JSON Entry Generator</h2>
 
+    <div class="generator-grid">
+        <div>
+            <label class="input-label" for="generatorProductNumber">
+                Product Number
+            </label>
+
+            <input
+                id="generatorProductNumber"
+                class="generator-input"
+                type="text"
+                placeholder="Example: A80-00L-RD6-01AU"
+            >
+        </div>
+
+        <div>
+            <label class="input-label" for="generatorSerialRanges">
+                Serial Numbers and Ranges
+            </label>
+
+            <textarea
+                id="generatorSerialRanges"
+                class="textarea"
+                placeholder="1240814267-1240817016
+
+1240777150, 1240778587-1240778601,
+1240817017-1240820496"
+            ></textarea>
+        </div>
+
+        <div class="button-group" style="margin-bottom: 0;">
+            <button
+                class="btn btn-purple"
+                type="button"
+                onclick="generateJsonEntries()"
+            >
+                <span>⚙️</span>
+                Generate JSON
+            </button>
+
+            <button
+                class="btn btn-outline"
+                type="button"
+                onclick="copyGeneratedJson()"
+            >
+                <span>📋</span>
+                Copy JSON
+            </button>
+
+            <button
+                class="btn btn-secondary"
+                type="button"
+                onclick="downloadGeneratedJson()"
+            >
+                <span>💾</span>
+                Download JSON
+            </button>
+
+            <button
+                class="btn btn-outline"
+                type="button"
+                onclick="clearJsonGenerator()"
+            >
+                <span>🗑️</span>
+                Clear
+            </button>
+        </div>
+
+        <div>
+            <label class="input-label" for="generatedJson">
+                Generated JSON
+            </label>
+
+            <textarea
+                id="generatedJson"
+                class="textarea generator-output"
+                readonly
+                placeholder="Generated JSON entries will appear here..."
+            ></textarea>
+
+            <div
+                id="generatorMessage"
+                class="generator-message"
+                role="status"
+            ></div>
+        </div>
+    </div>
+</div>
         <div class="table-container">
             <table class="table" id="resultTable">
                 <thead>
@@ -848,6 +1012,262 @@
                 processSerialNumbers();
             }
         });
+
+        function generateJsonEntries() {
+    const productInput = document.getElementById('generatorProductNumber');
+    const serialInput = document.getElementById('generatorSerialRanges');
+    const output = document.getElementById('generatedJson');
+
+    const productNumber = productInput.value.trim();
+    let rawSerialData = serialInput.value.trim();
+
+    clearGeneratorMessage();
+
+    /*
+     * Also accept pasted input containing:
+     *
+     * for: A80-00L-RD6-01AU
+     *
+     * 1240814267-1240817016, 1240777150
+     */
+    const embeddedProductMatch = rawSerialData.match(
+        /(?:^|\n)\s*for\s*:\s*([^\r\n]+)\s*/i
+    );
+
+    let resolvedProductNumber = productNumber;
+
+    if (!resolvedProductNumber && embeddedProductMatch) {
+        resolvedProductNumber = embeddedProductMatch[1].trim();
+        productInput.value = resolvedProductNumber;
+    }
+
+    if (!resolvedProductNumber) {
+        showGeneratorMessage(
+            'Enter a product number, for example A80-00L-RD6-01AU.',
+            'error'
+        );
+        productInput.focus();
+        return;
+    }
+
+    /*
+     * Remove any "for: PRODUCT" line before parsing serial values.
+     */
+    rawSerialData = rawSerialData.replace(
+        /(?:^|\n)\s*for\s*:\s*[^\r\n]+\s*/gi,
+        '\n'
+    );
+
+    const serialEntries = parseSerialEntries(rawSerialData);
+
+    if (serialEntries.length === 0) {
+        showGeneratorMessage(
+            'No valid serial numbers or ranges were found.',
+            'error'
+        );
+        serialInput.focus();
+        return;
+    }
+
+    const jsonObject = {};
+
+    for (const serialEntry of serialEntries) {
+        jsonObject[serialEntry] = resolvedProductNumber;
+    }
+
+    output.value = JSON.stringify(jsonObject, null, 2);
+
+    const duplicateCount =
+        countRawSerialEntries(rawSerialData) - serialEntries.length;
+
+    let message = `Generated ${serialEntries.length.toLocaleString()} JSON entries.`;
+
+    if (duplicateCount > 0) {
+        message += ` Removed ${duplicateCount.toLocaleString()} duplicate entries.`;
+    }
+
+    showGeneratorMessage(message, 'success');
+}
+
+function parseSerialEntries(rawInput) {
+    /*
+     * Supported input:
+     *
+     * 1240777150
+     * 1240778587-1240778601
+     * 1240777150, 1240778587-1240778601
+     *
+     * It deliberately extracts only numeric single values and numeric ranges.
+     */
+    const matches = rawInput.match(/\b\d+(?:\s*-\s*\d+)?\b/g) || [];
+
+    const normalizedEntries = matches
+        .map(entry => entry.replace(/\s+/g, ''))
+        .filter(isValidSerialEntry);
+
+    /*
+     * Set removes duplicates while preserving the original order.
+     */
+    return [...new Set(normalizedEntries)];
+}
+
+function isValidSerialEntry(entry) {
+    if (/^\d+$/.test(entry)) {
+        return true;
+    }
+
+    const rangeMatch = entry.match(/^(\d+)-(\d+)$/);
+
+    if (!rangeMatch) {
+        return false;
+    }
+
+    /*
+     * BigInt avoids precision problems if serial numbers eventually exceed
+     * JavaScript's Number.MAX_SAFE_INTEGER. Humans do love running out of
+     * numeric space.
+     */
+    try {
+        const start = BigInt(rangeMatch[1]);
+        const end = BigInt(rangeMatch[2]);
+
+        return end >= start;
+    } catch {
+        return false;
+    }
+}
+
+function countRawSerialEntries(rawInput) {
+    const matches = rawInput.match(/\b\d+(?:\s*-\s*\d+)?\b/g) || [];
+
+    return matches
+        .map(entry => entry.replace(/\s+/g, ''))
+        .filter(isValidSerialEntry)
+        .length;
+}
+
+async function copyGeneratedJson() {
+    const output = document.getElementById('generatedJson');
+    const json = output.value.trim();
+
+    clearGeneratorMessage();
+
+    if (!json) {
+        showGeneratorMessage(
+            'Generate the JSON before copying it.',
+            'error'
+        );
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(json);
+
+        showGeneratorMessage(
+            'Generated JSON copied to the clipboard.',
+            'success'
+        );
+    } catch (error) {
+        /*
+         * Clipboard API may be unavailable when opening the HTML directly
+         * through file://, so use the old fallback.
+         */
+        output.removeAttribute('readonly');
+        output.select();
+        output.setSelectionRange(0, output.value.length);
+
+        const copied = document.execCommand('copy');
+
+        output.setAttribute('readonly', '');
+
+        if (copied) {
+            showGeneratorMessage(
+                'Generated JSON copied to the clipboard.',
+                'success'
+            );
+        } else {
+            showGeneratorMessage(
+                'Clipboard access failed. Select and copy the output manually.',
+                'error'
+            );
+        }
+
+        console.error('Clipboard error:', error);
+    }
+}
+
+function downloadGeneratedJson() {
+    const output = document.getElementById('generatedJson');
+    const json = output.value.trim();
+
+    clearGeneratorMessage();
+
+    if (!json) {
+        showGeneratorMessage(
+            'Generate the JSON before downloading it.',
+            'error'
+        );
+        return;
+    }
+
+    try {
+        /*
+         * Validate the output before downloading.
+         */
+        JSON.parse(json);
+
+        const productNumber =
+            document.getElementById('generatorProductNumber').value.trim();
+
+        const safeProductNumber = productNumber
+            .replace(/[^a-zA-Z0-9_-]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+
+        const filename = safeProductNumber
+            ? `${safeProductNumber}_serials.json`
+            : 'serial_entries.json';
+
+        downloadFile(
+            json,
+            filename,
+            'application/json;charset=utf-8'
+        );
+
+        showGeneratorMessage(
+            `Downloaded ${filename}.`,
+            'success'
+        );
+    } catch (error) {
+        console.error('Invalid generated JSON:', error);
+
+        showGeneratorMessage(
+            'The generated output is not valid JSON.',
+            'error'
+        );
+    }
+}
+
+function clearJsonGenerator() {
+    document.getElementById('generatorProductNumber').value = '';
+    document.getElementById('generatorSerialRanges').value = '';
+    document.getElementById('generatedJson').value = '';
+
+    clearGeneratorMessage();
+}
+
+function showGeneratorMessage(message, type) {
+    const messageElement = document.getElementById('generatorMessage');
+
+    messageElement.textContent = message;
+    messageElement.className = `generator-message ${type}`;
+}
+
+function clearGeneratorMessage() {
+    const messageElement = document.getElementById('generatorMessage');
+
+    messageElement.textContent = '';
+    messageElement.className = 'generator-message';
+}
     </script>
 </body>
 </html>
