@@ -1129,20 +1129,37 @@
 
         function toComparableSerial(value) {
             const normalized = String(value).replace(/^0+/, '') || '0';
+
+            if (!/^\d+$/.test(normalized)) {
+                return null;
+            }
+
             return BigInt(normalized);
         }
 
         function getSerialBounds(entry) {
             if (entry.includes('-')) {
-                const [start, end] = entry.split('-');
+                const [startRaw, endRaw] = entry.split('-');
+                const start = toComparableSerial(startRaw);
+                const end = toComparableSerial(endRaw);
+
+                if (start === null || end === null) {
+                    return null;
+                }
+
                 return {
-                    start: toComparableSerial(start),
-                    end: toComparableSerial(end),
+                    start,
+                    end,
                     label: entry
                 };
             }
 
             const value = toComparableSerial(entry);
+
+            if (value === null) {
+                return null;
+            }
+
             return {
                 start: value,
                 end: value,
@@ -1155,15 +1172,21 @@
         }
 
         function findExistingSerialConflicts(serialEntries) {
-            const existingEntries = Object.entries(serialMapping).map(([key, product]) => ({
-                bounds: getSerialBounds(key),
-                product
-            }));
+            const existingEntries = Object.entries(serialMapping)
+                .map(([key, product]) => {
+                    const bounds = getSerialBounds(key);
+                    return bounds ? { bounds, product } : null;
+                })
+                .filter(Boolean);
 
             const conflicts = [];
 
             for (const entry of serialEntries) {
                 const inputBounds = getSerialBounds(entry);
+
+                if (!inputBounds) {
+                    continue;
+                }
 
                 for (const existing of existingEntries) {
                     if (serialBoundsOverlap(inputBounds, existing.bounds)) {
